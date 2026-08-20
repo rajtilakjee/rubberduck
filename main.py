@@ -4,7 +4,9 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+import questionary
 import typer
+from questionary import Choice
 
 from utils.git import (
     get_current_branch,
@@ -85,16 +87,67 @@ def get_session_files() -> list[Path]:
     )
 
 
+def abort_if_cancelled(value: str | None) -> str:
+    """Abort the command if a Questionary prompt was cancelled."""
+    if value is None:
+        typer.echo()
+        typer.secho(
+            "Debugging session cancelled.",
+            fg=typer.colors.YELLOW,
+        )
+        raise typer.Abort()
+
+    return value.strip()
+
+
+def ask_last_working() -> str:
+    """Ask when the project was last known to be working."""
+    selection = questionary.select(
+        "When was the last time it worked?",
+        choices=[
+            Choice(
+                title="Yesterday",
+                value="yesterday",
+            ),
+            Choice(
+                title="3 days ago",
+                value="3_days",
+            ),
+            Choice(
+                title="1 week ago",
+                value="1_week",
+            ),
+            Choice(
+                title="1 month ago",
+                value="1_month",
+            ),
+            Choice(
+                title="Enter date manually",
+                value="manual",
+            ),
+        ],
+    ).ask()
+
+    selection = abort_if_cancelled(selection)
+
+    if selection == "manual":
+        manual_date = questionary.text("Enter the date (YYYY-MM-DD):").ask()
+
+        return abort_if_cancelled(manual_date)
+
+    return selection
+
+
 @app.command()
 def debug() -> None:
     """Start a new debugging session."""
-    problem = typer.prompt("Describe the problem").strip()
+    problem = abort_if_cancelled(questionary.text("Describe the problem:").ask())
 
-    expected_behavior = typer.prompt("Describe the expected behavior").strip()
+    expected_behavior = abort_if_cancelled(
+        questionary.text("Describe the expected behavior:").ask()
+    )
 
-    last_working = typer.prompt(
-        "When was the last time it worked? (e.g. yesterday, last week)"
-    ).strip()
+    last_working = ask_last_working()
 
     now = datetime.now(UTC)
 
@@ -132,7 +185,6 @@ def debug() -> None:
 
             for item in status:
                 typer.echo(f"  {item}")
-
         else:
             typer.echo("Working tree: clean")
 
