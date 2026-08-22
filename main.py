@@ -8,14 +8,16 @@ import questionary
 import typer
 from questionary import Choice
 
+from utils.dates import get_date_from_relative_string
 from utils.git import (
+    get_changed_files_since,
+    get_commits_since,
     get_current_branch,
     get_current_head,
     get_recent_commits,
     get_repository_root,
     get_status,
 )
-from utils.dates import get_date_from_relative_string
 
 app = typer.Typer(help="A structured debugging assistant for developers.")
 
@@ -88,14 +90,18 @@ def get_session_files() -> list[Path]:
     )
 
 
-def abort_if_cancelled(value: str | None) -> str:
+def abort_if_cancelled(
+    value: str | None,
+) -> str:
     """Abort the command if a Questionary prompt was cancelled."""
     if value is None:
         typer.echo()
+
         typer.secho(
             "Debugging session cancelled.",
             fg=typer.colors.YELLOW,
         )
+
         raise typer.Abort()
 
     return value.strip()
@@ -161,12 +167,24 @@ def debug() -> None:
     git_context: dict[str, Any] | None = None
 
     if repo_root is not None:
+        commits_since_last_working = get_commits_since(
+            repo_root,
+            last_working_at,
+        )
+
+        changed_files_since_last_working = get_changed_files_since(
+            repo_root,
+            last_working_at,
+        )
+
         git_context = {
             "repository_root": str(repo_root),
             "branch": get_current_branch(repo_root),
             "head": get_current_head(repo_root),
             "status": get_status(repo_root),
             "recent_commits": get_recent_commits(repo_root),
+            "commits_since_last_working": commits_since_last_working,
+            "changed_files_since_last_working": (changed_files_since_last_working),
         }
 
         typer.echo()
@@ -191,6 +209,31 @@ def debug() -> None:
         else:
             typer.echo("Working tree: clean")
 
+        typer.echo()
+
+        typer.secho(
+            "Changes since last working:",
+            bold=True,
+        )
+
+        typer.echo(f"Commits: {len(commits_since_last_working)}")
+
+        typer.echo(f"Files changed: {len(changed_files_since_last_working)}")
+
+        if commits_since_last_working:
+            typer.echo()
+            typer.echo("Commits:")
+
+            for commit in commits_since_last_working:
+                typer.echo(f"  {commit}")
+
+        if changed_files_since_last_working:
+            typer.echo()
+            typer.echo("Files touched:")
+
+            for file_path in changed_files_since_last_working:
+                typer.echo(f"  {file_path}")
+
     else:
         typer.echo()
 
@@ -204,6 +247,7 @@ def debug() -> None:
         "started_at": now.isoformat(),
         "problem": problem,
         "expected_behavior": expected_behavior,
+        "last_working_input": last_working_input,
         "last_working": last_working_at.isoformat(),
         "git": git_context,
     }
@@ -277,7 +321,7 @@ def sessions() -> None:
 
         typer.echo(f"Expected: {session_data['expected_behavior']}")
 
-        typer.echo(f"Last working: {session_data['last_working']}")
+        typer.echo(f"Last working: {session_data['last_working_input']}")
 
         git_context = session_data.get("git")
 
@@ -285,6 +329,20 @@ def sessions() -> None:
             typer.echo(f"Branch: {git_context.get('branch') or 'Unknown'}")
 
             typer.echo(f"HEAD: {git_context.get('head') or 'Unknown'}")
+
+            commits = git_context.get(
+                "commits_since_last_working",
+                [],
+            )
+
+            changed_files = git_context.get(
+                "changed_files_since_last_working",
+                [],
+            )
+
+            typer.echo(f"Commits since last working: {len(commits)}")
+
+            typer.echo(f"Files changed since last working: {len(changed_files)}")
 
         typer.echo()
 

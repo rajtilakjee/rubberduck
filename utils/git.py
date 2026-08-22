@@ -2,6 +2,34 @@ import subprocess
 from pathlib import Path
 
 
+def get_changed_files_since(
+    repo_root: Path,
+    since_datetime: datetime,
+) -> list[str]:
+    """Return unique files changed in commits since a specific datetime."""
+    result = run_git_command(
+        [
+            "log",
+            "--name-only",
+            "--pretty=format:",
+            f"--since={since_datetime.isoformat()}",
+        ],
+        cwd=repo_root,
+    )
+
+    if result.returncode != 0:
+        return []
+
+    output = result.stdout.strip()
+
+    if not output:
+        return []
+
+    files = [line.strip() for line in output.splitlines() if line.strip()]
+
+    return sorted(set(files))
+
+
 def run_git_command(
     args: list[str],
     cwd: Path | None = None,
@@ -84,6 +112,35 @@ def get_recent_commits(
     """Return recent Git commits."""
     result = run_git_command(
         ["log", "--oneline", "-n", str(limit)],
+        cwd=repo_root,
+    )
+
+    if result.returncode != 0:
+        return []
+
+    output = result.stdout.strip()
+
+    if not output:
+        return []
+
+    return output.splitlines()
+
+
+from datetime import datetime
+from pathlib import Path
+
+
+def get_commits_since(
+    repo_root: Path,
+    since_datetime: datetime,
+) -> list[str]:
+    """Return Git commits since a specific datetime."""
+    result = run_git_command(
+        [
+            "log",
+            "--oneline",
+            f"--since={since_datetime.isoformat()}",
+        ],
         cwd=repo_root,
     )
 
