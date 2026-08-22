@@ -15,6 +15,7 @@ from utils.git import (
     get_repository_root,
     get_status,
 )
+from utils.dates import get_date_from_relative_string
 
 app = typer.Typer(help="A structured debugging assistant for developers.")
 
@@ -147,9 +148,11 @@ def debug() -> None:
         questionary.text("Describe the expected behavior:").ask()
     )
 
-    last_working = ask_last_working()
+    last_working_input = ask_last_working()
 
     now = datetime.now(UTC)
+
+    last_working_at = get_date_from_relative_string(last_working_input)
 
     session_id = f"{now.strftime('%Y-%m-%d_%H-%M-%S')}_{uuid4().hex[:6]}"
 
@@ -201,7 +204,7 @@ def debug() -> None:
         "started_at": now.isoformat(),
         "problem": problem,
         "expected_behavior": expected_behavior,
-        "last_working": last_working,
+        "last_working": last_working_at.isoformat(),
         "git": git_context,
     }
 
